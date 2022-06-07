@@ -1,11 +1,18 @@
+# Supplemental figure for the ΨQTL manuscript, looking at some properties
+# of symmetric / non-symmetric exons
 # In this script, I dig a bit deeper into symmetric and non-symmetric sQTLs.  
 # What is going on with these? 
 
 rm(list = ls())
 setwd("/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno/sqtl_analyses")
 suppressPackageStartupMessages(source("~/myPackages.R"))
+source("../../sqtl_manuscript/sqtl_manuscript_functions.R")
 
 sqtls <- read_tsv("../multiple_exon_analysis/cross_tissue_top_sQTLs_and_secondary_exons_with_matching_signs_exons_labeled_by_coord.tsv")
+
+# Relabel exons by their ID (instead of their coordinates)
+id_exon_map <- read_rds("../../../../data/gtex_stuff/gtex_v8_id_exon_map.rds")
+sqtls$exon_id <- id_exon_map[sqtls$pid]
 
 # Limit to sQTLs where only one exon is significant. This will probably simplify
 # things moving forward. 
@@ -30,17 +37,39 @@ sqtls$exon_length <- sapply(
   sqtls$pid, calculate_exon_length
 )
 
+# Get rid of sQTLs where the sExon is a terminal exon.
+n_exons_per_gene <- read_tsv("../../../../data/gtex_stuff/gtex_v8_n_exons_per_gene.tsv")
+sqtls %<>%
+  mutate(exon_number = str_split(exon_id, "_") %>% map(2) %>% as.integer) %>%
+  left_join(n_exons_per_gene, by = c("group" = "gene")) %>% 
+  mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons.x))
+
+   # Real quick, how is the significant exon a terminal exon
+   barplot(table(sqtls$terminal_exon_flag), main = "Significant exon is the terminal exon")
+
+sqtls %<>% filter(!terminal_exon_flag)
+
+#### Plot 1 - Lenghts of all sExons ####
+hist(log10(sqtls$exon_length), col = "cornflowerblue", 
+     main = "Distribution of sExon lengths", 
+     xlab = "log10(Exon Length) (bp)")
+lim <- quantile(sqtls$exon_length)[4] + (1.5 * IQR(sqtls$exon_length))
+abline(v = log10(lim), col = "red", lty = 2)
+
 # Dump abnormally long exons
-sqtls <- sqtls[!flag_outliers(sqtls$exon_length),]
-barplot(table(sqtls$exon_length %% 3), 
-        main = "sExon Lengths mod 3")
+#     Actually nevermind, don't do
+# sqtls <- sqtls[!flag_outliers(sqtls$exon_length),]
+# barplot(table(sqtls$exon_length %% 3), 
+#         main = "sExon Lengths mod 3")
+# 
+# hist(sqtls$exon_length)
+# 
 
-hist(sqtls$exon_length)
 
+# 1) Is being symmetric affected by exon length? ----
 sqtls$is_symmetric <- (sqtls$exon_length %% 3) == 0
 barplot(table(sqtls$is_symmetric))
 
-# 1) Is being symmetric affected by exon length? ----
 library(ggplot2)
 ggplot(sqtls, aes(exon_length, fill = is_symmetric)) + 
   geom_density(alpha = .5)
@@ -92,7 +121,6 @@ all_exons <-
   ungroup
 
 all_exons$is_symmetric <- (all_exons$width %% 3 == 0)
-
 
 # Plot these side by side. Are non-terminal exons 
 # more likely to be symmetric?
@@ -188,12 +216,28 @@ fisher.test(is.symmetric.c.table)
 
 par(mfrow = c(1,1))
 p.table <- t(apply(c.table, 1, function(x) x / sum(x)))
-barplot(p.table, beside = T, 
-        col = c("aquamarine", "coral"), 
-        main = expression('Exon length ' *italic(mod)*' 3'), 
-        ylab = "Percent of all exons", space = c(.2, 0, .2, 0, .2, 0))
-legend("topright", c("All exons", "sExons"), col = c("aquamarine", "coral"), 
-       pch = 15)
+
+# save_plot("fig1_sqtl_symmetry_barplot.svg", width = 5, height = 5)
+# barplot(p.table, beside = T, 
+#         col = c("aquamarine", "coral"), 
+#         main = expression('Exon length ' *italic(mod)*' 3'), 
+#         ylab = "Percent of all exons", space = c(.2, 0, .2, 0, .2, 0))
+# legend("topright", c("All exons", "sExons"), col = c("aquamarine", "coral"), 
+#        pch = 15)
+# dev.off()
+
+# Remake this in ggplot
+save_plot("fig1_sqtl_symmetry_barplot.svg", width = 5, height = 5)
+as.data.frame(p.table) %>% 
+  rownames_to_column("group") %>% 
+  pivot_longer(cols = c('0', '1', '2'), names_to = "Exon_length", values_to = "Percent") %>%
+  ggplot(aes(Exon_length, Percent, fill = group)) + 
+  scale_fill_manual(values = c("aquamarine", "coral")) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  sqtl_manuscript_theme() + 
+  theme(legend.position = c(.8, .9)) + 
+  xlab("Exon Length mod 3") + ylab("Percent of All Exons")
+dev.off()
 
 # 5) Comparison to full gencode v26 set ----
 gencode_v26 <- rtracklayer::import("/gpfs/commons/groups/lappalainen_lab/jeinson/data/gtex_stuff/v8_psi/psi_annotation/gencode.v26.annotation.gtf")
