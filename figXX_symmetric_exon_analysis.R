@@ -4,14 +4,15 @@
 # What is going on with these? 
 
 rm(list = ls())
-setwd("/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno/sqtl_analyses")
+library(here)
+
 suppressPackageStartupMessages(source("~/myPackages.R"))
 source("../../sqtl_manuscript/sqtl_manuscript_functions.R")
 
-sqtls <- read_tsv("../multiple_exon_analysis/cross_tissue_top_sQTLs_and_secondary_exons_with_matching_signs_exons_labeled_by_coord.tsv")
+sqtls <- read_tsv(here("data/cross_tissue_top_sQTLs_and_secondary_exons_with_matching_signs_exons_labeled_by_coord.tsv"))
 
 # Relabel exons by their ID (instead of their coordinates)
-id_exon_map <- read_rds("../../../../data/gtex_stuff/gtex_v8_id_exon_map.rds")
+id_exon_map <- read_rds(here("data/gtex_v8_id_exon_map.rds"))
 sqtls$exon_id <- id_exon_map[sqtls$pid]
 
 # Limit to sQTLs where only one exon is significant. This will probably simplify
@@ -38,14 +39,15 @@ sqtls$exon_length <- sapply(
 )
 
 # Get rid of sQTLs where the sExon is a terminal exon.
-n_exons_per_gene <- read_tsv("../../../../data/gtex_stuff/gtex_v8_n_exons_per_gene.tsv")
+n_exons_per_gene <- read_tsv(here("data/gtex_v8_n_exons_per_gene.tsv"))
+
 sqtls %<>%
   mutate(exon_number = str_split(exon_id, "_") %>% map(2) %>% as.integer) %>%
   left_join(n_exons_per_gene, by = c("group" = "gene")) %>% 
   mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons.x))
 
    # Real quick, how is the significant exon a terminal exon
-   barplot(table(sqtls$terminal_exon_flag), main = "Significant exon is the terminal exon")
+barplot(table(sqtls$terminal_exon_flag), main = "Significant exon is the terminal exon")
 
 sqtls %<>% filter(!terminal_exon_flag)
 
@@ -90,7 +92,7 @@ ggplot(sqtls, aes(sd_psi, fill = is_symmetric)) +
 # Let's just read in all protein coding genes from the GTEx gtf, and 
 # perform the same calculations. 
 library(rtracklayer)
-gtf <- rtracklayer::import("../../data/gencode.v26.GRCh38.GTExV8.genes.gtf")
+gtf <- rtracklayer::import(here("../data/gencode.v26.GRCh38.GTExV8.genes.gtf"))
 #gtf <- rtracklayer::import("../../data/gencode.v26.annotation.gtf.gz")
 gtf_df <- data.frame(gtf)
 all_exons <- filter(gtf_df, transcript_type == "protein_coding" & type == "exon") %>%

@@ -5,24 +5,23 @@
 # 
 # Jonah Einson
 # 4/12/22
-rm(list = ls())
-source("~/myPackages.R")
-setwd("/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno")
-source("../sqtl_manuscript/sqtl_manuscript_functions.R")
+library(here)
+source(here("myPackages.R"))
+source(here("sqtl_manuscript_functions.R"))
 library(ggplot2)
 
 
 #### 1B. N Significant vs. N individuals in GTEx ####
 # Find the number of genes tested vs the number significant. 
-tissues <- read_lines("completed_tissues.txt")
-qtl_lists <- tissues %>% map(~ read_tsv(paste0("combined_qtltools_results/", 
+tissues <- read_lines(here("data/completed_tissues.txt"))
+qtl_lists <- tissues %>% map(~ read_tsv(paste0(here("../sQTL_v8_anno/combined_qtltools_results/"), 
                                                .x, "_combined_sQTLs.tsv")))
 names(qtl_lists) <- tissues
 
 sig_genes <- sapply(qtl_lists, function(x) sum(x$bpval < .05))
 tested_genes <- sapply(qtl_lists, nrow)
 percent_sig <- sig_genes / tested_genes
-n_per_tiss <- sapply(tissues, function(x) length(read_lines(paste0("indvs_per_tiss/", x, "_indvs.txt"))))
+n_per_tiss <- sapply(tissues, function(x) length(read_lines(paste0(here("data/indvs_per_tiss/"), x, "_indvs.txt"))))
 
 summary_table <- data.frame(
   "Tissue" = tissues, 
@@ -67,10 +66,10 @@ ggplot(summary_table_w_color, aes(tissue_site_detail, `Significant Genes`, fill 
 #### 1C. sExon symmetry vs. all exons ####
 
 # All sQTLs
-sqtls <- read_tsv("cross_tissue_top_sQTLs/top_sQTLs_MAF05.tsv")
+sqtls <- read_tsv(here("data/top_sQTLs_MAF05.tsv"))
 
 # Remove terminal exons
-n_exons_per_gene <- read_tsv("../../../data/gtex_stuff/gtex_v8_n_exons_per_gene.tsv")
+n_exons_per_gene <- read_tsv(here("data/gtex_v8_n_exons_per_gene.tsv"))
 sqtls %<>%
   mutate(exon_number = str_split(top_pid, "_") %>% map(2) %>% as.integer) %>%
   left_join(n_exons_per_gene, by = c("group" = "gene")) %>% 
@@ -157,7 +156,7 @@ fig1D <-
   sqtl_manuscript_theme()
 
 #### 1E Derived allele effect direction bars ####
-sqtls_da <- read_tsv("anc_allele_analysis/top_sQTLs_MAF05_w_anc_allele.tsv")
+sqtls_da <- read_tsv(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 sqtls <- filter(sqtls_da, group %in% sqtls$group)
 
 # Add if derived is lower or higher allele
@@ -226,9 +225,6 @@ fig1G <-
 # 1H Annotions of high vs low inclusion sQTLs ----
 # This was a point brought up. What do the annotations look like among different
 # classes of top sQTLs?
-library(vcfR)
-vcf_fp = "/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno/cross_tissue_top_sQTLs/top_sQTLs_MAF05.annotated.vcf"
-sqtls_annotated <- read.vcfR(vcf_fp)
 
 # Get the variants in VEP format for a VEP run
 # sqtls_vep <- sqtls_da %>% select(chr, start, end)
@@ -268,6 +264,40 @@ write_tsv(sqtls_vep, "cross_tissue_top_sQTLs/top_sQTLs_MAF05.var", col_names = F
 #   
 # ggplot(aes(annotations, color = der_allele_hl)) + 
 #   geom_bar(position = "dodge")
+
+### After running:
+library(vcfR)
+vcf_fp = "/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno/cross_tissue_top_sQTLs/top_sQTLs_MAF05.annotated.vcf"
+sqtls_annotated <- read.vcfR(vcf_fp)
+sqtls_annotated <- vcfR::extract_info_tidy(sqtls_annotated) %>%
+  mutate(genes = str_split(genes, ",")) %>%
+  mutate(annotations = str_split(annotations, ",")) %>%
+  mutate(transcripts = str_split(transcripts, ",")) %>%
+  mutate(distances = str_split(distances, ",")) %>% 
+  unnest(cols = c(genes, transcripts, distances, annotations)) %>%
+  mutate(transcripts = remove_trailing_digit(transcripts))
+
+sqtls_annotated_subset <- sqtls_da %>% 
+  left_join(sqtls_annotated, by = c("group" = "transcripts")) %>%
+  select(group, ID, annotations, der_allele_hl, delta_psi) %>%
+  distinct()
+sqtls_annotated_subset$annotations[is.na(sqtls_annotated_subset$annotations)] <- 'intergenic'
+
+# Calculate percentage of each
+sqtl_anno_table <- 
+  with(sqtls_annotated_subset 
+       #%>% filter(delta_psi > .05)
+       , table(annotations, der_allele_hl))
+chisq.test(sqtl_anno_table)
+
+sqtl_anno_table <- sqtl_anno_table %>%
+  data.frame %>%
+  set_colnames(c("annotation", "exonic_DA_effect", "count"))
+ggplot(sqtl_anno_table, aes(x = exonic_DA_effect, fill = annotation)) + 
+ # geom_text(aes(label = Freq)) +
+  geom_bar(aes(y = ..count.. / sum(..count..)), position = "dodge") 
+
+ggplot(sqtl_anno_table, aes(annotation, ))
 
 #### Plot the Plots! ####
 fig_w = 5
