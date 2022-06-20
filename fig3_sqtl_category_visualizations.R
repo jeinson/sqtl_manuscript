@@ -37,3 +37,4 @@ ggplot(results %>% filter(test_type == "ks"),
 # What do distributions of individual features look like?
 sqtl_details <- read_csv("../splicing_project/Data/combined_sQTL_data.csv")
 sqtl_details
+

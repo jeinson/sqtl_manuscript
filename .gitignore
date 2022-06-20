@@ -1,3 +1,4 @@
 figures/
 *.html
 .Rproj.user
+test*

@@ -18,3 +18,12 @@ sqtl_manuscript_theme <- function() {
                axis.line = element_line(colour = "black"), 
                legend.text = element_text(size=11), legend.title = element_text(size=12)))
 }
+
+fisher.test.to.data.frame <- function(fisher_test){
+  data.frame(
+    p.value = fisher_test$p.value,
+    conf.int.low = fisher_test$conf.int[1],
+    conf.int.high = fisher_test$conf.int[2],
+    estimate = fisher_test$estimate
+  )
+}

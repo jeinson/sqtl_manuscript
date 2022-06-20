@@ -44,6 +44,9 @@ fig1B <-
                    point.padding = .7,
                    size = 3) + 
   sqtl_manuscript_theme()
+summary(
+  lm(`Significant Genes` ~ `Total Individuals`, data = summary_table)
+)
 
 # Scratch that. Just make a barplot of the number of significant sQTLs mapped
 # per tissue. Keep it simple. 
@@ -75,6 +78,18 @@ sqtls %<>%
   left_join(n_exons_per_gene, by = c("group" = "gene")) %>% 
   mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons))
 sqtls %<>% filter(!terminal_exon_flag)
+
+### Figure 1S: Location of sExon in CDS ####
+sExon_cds_location <- sqtls$exon_number / sqtls$n_exons
+fig_1S <- 
+  ggplot() + 
+  geom_histogram(aes(x = sExon_cds_location), bins = 10, 
+                 color = "black", fill = "darkolivegreen3") + 
+  xlab("Normalized location in CDS") + 
+  ylab("sExons") + 
+  sqtl_manuscript_theme()
+library(spgs)
+chisq.unif.test(sExon_cds_location)
 
 # Calculate the lengths of exons
 exon_id_map <- read_rds("../../../data/gtex_stuff/gtex_v8_exon_id_map.rds")
@@ -157,7 +172,7 @@ fig1D <-
 
 #### 1E Derived allele effect direction bars ####
 sqtls_da <- read_tsv(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
-sqtls <- filter(sqtls_da, group %in% sqtls$group)
+sqtls_da <- filter(sqtls_da, group %in% sqtls$group)
 
 # Add if derived is lower or higher allele
 sqtls_da$der_allele_hl <- 
@@ -329,6 +344,10 @@ dev.off()
 
 save_plot("fig1G_derived_allele_effect_density_across_cutoffs.svg", width = fig_w, height = fig_h)
 fig1G
+dev.off()
+
+save_plot("fig1S_sexon_cds_location.svg", width = 3, height = 2)
+fig_1S
 dev.off()
 
 # Cowplot everything
