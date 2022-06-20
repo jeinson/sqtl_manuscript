@@ -30,7 +30,15 @@ results$pp_power <- with(results, PP.H3.abf + PP.H4.abf)
 results$pp_coloc <- with(results, PP.H4.abf / (PP.H3.abf + PP.H4.abf))
 
 # Only include genes that are in the top sQTL set
+# Include the terminal exon filter. 
 top_sQTLs <- read_tsv(here("data/top_sQTLs_MAF05.tsv"))
+n_exons_per_gene <- read_tsv(here("data/gtex_v8_n_exons_per_gene.tsv"))
+top_sQTLs <- 
+  top_sQTLs %>%
+  mutate(exon_number = str_split(top_pid, "_") %>% map(2) %>% as.integer) %>%
+  left_join(n_exons_per_gene, by = c("group" = "gene")) %>% 
+  mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons))
+top_sQTLs %<>% filter(!terminal_exon_flag)
 
 results_top_coloc <- 
   results %>%
@@ -45,22 +53,118 @@ results_top_coloc <-
 results_top_coloc %<>%
   mutate(dist = sqrt((1-pp_power)^2+(1-pp_coloc)^2))
 
-# Plot PP-coloc vs. PP-power
-ggplot(results_top_coloc, aes(pp_coloc, pp_power, color = dist < .25)) + 
-  geom_point() + 
-  scale_color_manual(values = c("red", "blue"))
-
 # Test what Euclidean distance optimizes the number of things we call colocalized
 pct <- function(x) sum(x) / length(x)
 x = seq(0, 1.2, by = .05)
 y = sapply(x , function(x) pct(results_top_coloc$dist < x))
 plot(x, y, type = 'o')
 
-# Define colocalization as having a Euclidean distance < .25 from 1,1
-results_top_coloc$has_coloc <- results_top_coloc$dist < .25
-barplot(table(results_top_coloc$has_coloc), col = "cornflowerblue")
-text(x = c(1,2), y = table(results_top_coloc$has_coloc)-100, labels = table(results_top_coloc$has_coloc))
-
 # Save this file for downstream analyses. I think this will make our lives easier. 
 write_tsv(results_top_coloc, here("data/top_sQTLs_with_top_coloc_event.tsv"))
 
+
+# Retrieve the derived and ancestral alleles for the top colocalizing alleles
+# Let's just do this super inefficiently but whatever. 
+x_subset <- results_top_coloc %>%
+  select(qtl_lead_snv, qtl, phenotype_id, gwas)
+
+
+# For each row, grab the qtl beta value and the derived allele. 
+x <- str_split(x_subset$qtl_lead_snv, "_")
+x_subset$chr <- map_chr(x, 1)
+x_subset$pos <- as.numeric(map_chr(x, 2))
+x_subset$ref <- map_chr(x, 3)
+x_subset$alt <- map_chr(x, 4)
+
+x_subset$anc_allele <- character(length = nrow(x_subset))
+x_subset$beta <- numeric(length = nrow(x_subset))
+
+get_qtl_path <- function(tiss, chr){
+  sprintf("/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno/qtltools_results/%s_nominal/%s.qtltools.nominal.MAF05.%s.06.02.21.txt.gz", 
+          tiss, 
+          tiss,
+          chr)
+}
+
+library(seqminer)
+tabix.read.table.custom <- 
+  function (tabixFile, tabixRange, col.names = TRUE, stringsAsFactors = FALSE) {
+    stopifnot(seqminer:::local.file.exists(tabixFile))
+    stopifnot(all(isTabixRange(tabixRange)))
+    tabixFile <- path.expand(tabixFile)
+    storage.mode(tabixFile) <- "character"
+    storage.mode(tabixRange) <- "character"
+    header <- .Call("readTabixHeader", tabixFile, PACKAGE = "seqminer")
+    body <- .Call("readTabixByRange", tabixFile, tabixRange, 
+                  PACKAGE = "seqminer")
+    body <- do.call(rbind, strsplit(body, "\t"))
+    body <- as.data.frame(body, stringsAsFactors = FALSE)
+    # Don't do the type conversion. that screw everything
+    if (ncol(body) > 0) {
+      #   for (i in 1:ncol(body)) {
+      #     body[, i] <- utils::type.convert(body[, i], as.is = !stringsAsFactors)
+      #   }
+      num.col <- ncol(body)
+      header <- header[nchar(header) > 0]
+      if (length(header) == 0 || !col.names) {
+        colNames <- paste0("V", 1L:num.col)
+      }
+      else {
+        hdrLine <- header[length(header)]
+        hdrLine <- sub("^#", "", hdrLine)
+        colNames <- make.names(strsplit(hdrLine, "\t")[[1]])
+        if (length(colNames) > ncol(body)) {
+          colNames <- colNames[1:ncol(body)]
+        }
+        else if (length(colNames) < ncol(body)) {
+          tmpNames <- paste0("V", 1L:num.col)
+          tmpNames[1:length(colNames)] <- colNames
+          colNames <- tmpNames
+        }
+      }
+      colnames(body) <- colNames
+    }
+    body
+  }
+
+anc_allele_file = "/gpfs/commons/groups/lappalainen_lab/dglinos/projects/epistasis/analysis/release_91_homo_sapiens.txt.gz"
+get_ancestral_allele <- function(chr, pos, ref, alt){
+  chr_abs <- str_remove(chr, "chr")
+  trange <- paste0(chr_abs, ":", pos, "-", pos)
+  tabix.result <- tabix.read.table.custom(anc_allele_file, trange)
+  
+  if(nrow(tabix.result) > 0){
+    anc_allele <- tabix.result$V7[tabix.result$V4 == ref & tabix.result$V5 == alt]
+  } else {
+    anc_allele <- NA
+  }
+
+  anc_allele
+}
+
+qtl_path = ""
+
+# Sort to avoid having to read in the data frame many many times
+x_subset %<>% arrange(qtl, chr)
+
+# Do the whole shebang
+for(i in 1:nrow(x_subset)){
+  attach(x_subset[i,], warn.conflicts = F)
+  message(paste0(i, ", "), appendLF = F)
+  qtl_path_new <- get_qtl_path(qtl, chr)
+  
+  # Prevent having to read in the file every time I do this
+  if(qtl_path != qtl_path_new){
+    qtl_path <- qtl_path_new
+    qtl_res <- read_delim(qtl_path, delim = " ", col_names = F)
+  }
+  
+  anc_allele <- get_ancestral_allele(chr, pos, ref, alt)
+  qtl_beta <- filter(qtl_res, X1 == phenotype_id & X10 == pos)$X13
+  
+  x_subset$anc_allele[i] <- anc_allele
+  x_subset$beta[i] <- qtl_beta
+  
+}
+
+write_tsv(x_subset, here("data/top_sQTLs_with_top_coloc_event_aa_and_beta.tsv"))
