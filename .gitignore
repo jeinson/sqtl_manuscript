@@ -2,3 +2,4 @@ figures/
 *.html
 .Rproj.user
 test*
+.Rhistory
