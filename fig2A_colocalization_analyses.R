@@ -16,6 +16,9 @@ sqtls_coloc %<>%
   mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons))
 sqtls_coloc %<>% filter(!terminal_exon_flag)
 
+# Add has_coloc flag
+sqtls_coloc$has_coloc <- sqtls_coloc$dist < .25
+
 # Plot PP.power vs. PP.coloc for all genes
 fig2S_1 <- 
   ggplot(sqtls_coloc, aes(pp_power, pp_coloc, color = has_coloc)) + 
@@ -43,8 +46,7 @@ fig2A
 
 ## 2) Contribution of derived alleles and exon symmetry ----
 # Calculate lengths of exons
-
-# Symmetry
+# Symmetry ----
 calculate_exon_length <- function(x){
   k = unlist(str_split(x, "_"))
   start = as.integer(k[2])
@@ -52,25 +54,49 @@ calculate_exon_length <- function(x){
   end - start + 1
 }
 
-sqtls_coloc$exon_length <- sapply(qtls_coloc$Exon_coord, calculate_exon_length)
+sqtls_coloc$exon_length <- sapply(sqtls_coloc$Exon_coord, calculate_exon_length)
 sqtls_coloc %<>% mutate(symmetric = (exon_length %% 3) == 0)
 
-symmetry_coloc_table <- with(sqtls_coloc, table(has_coloc, symmetric))
+symmetry_coloc_table <- with(sqtls_coloc, table(symmetric, has_coloc))
+symmetry_coloc_table
 symmetry_fisher_test <- fisher.test(symmetry_coloc_table)
+symmetry_fisher_test
 
 symmetry_fisher_test <- 
   fisher.test.to.data.frame(symmetry_fisher_test)
 
 
-# Derived allele effect direction
-ancestral_alleles <- read_tsv(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
-top_sQTLs_top_coloc_anc_alleles <-
-  ancestral_alleles %>%
-  select(top_pid, li_allele, hi_allele, anc_allele) %>%
-  right_join(top_sQTLs_top_coloc)
+# Derived allele effect direction ----
+# Read in the file compiled from the previous script. 
+ancestral_alleles <- read_tsv(here("data/top_sQTLs_with_top_coloc_event_aa_and_beta.tsv"))
 
-top_sQTLs_top_coloc_anc_alleles$der_allele_hl <-
-  with(top_sQTLs_top_coloc_anc_alleles,
+sqtls_coloc_aa_beta <- 
+  sqtls_coloc %>%
+  left_join(
+    ancestral_alleles
+  )
+
+allele_caller <- function(ref, alt, beta, hi = T){
+  if(!is.na(beta)){
+    if(beta > 0){
+      li_allele = ref; hi_allele = alt
+    } else if(beta < 0){
+      hi_allele = ref; li_allele = alt
+    }
+    ifelse(hi, hi_allele, li_allele)
+  }
+  else {
+    NA
+  }
+}
+
+sqtls_coloc_aa_beta$hi_allele <- 
+  with(sqtls_coloc_aa_beta, mapply(allele_caller, ref, alt, beta, hi = T))
+sqtls_coloc_aa_beta$li_allele <- 
+  with(sqtls_coloc_aa_beta, mapply(allele_caller, ref, alt, beta, hi = F))
+
+sqtls_coloc_aa_beta$der_allele_hl <-
+  with(sqtls_coloc_aa_beta,
        # This is based on the ancestral allele, so flip it since we're interested
        # in the ancestral allele
        ifelse(anc_allele == hi_allele,
@@ -80,3 +106,39 @@ top_sQTLs_top_coloc_anc_alleles$der_allele_hl <-
               )
        )
   )
+
+da_coloc_table <- with(sqtls_coloc_aa_beta, table(der_allele_hl, has_coloc))
+da_coloc_table
+da_fisher_test <- fisher.test(da_coloc_table)
+da_fisher_test
+
+da_fisher_test <- 
+  fisher.test.to.data.frame(da_fisher_test)
+
+## 3) Distance from Exon to sSNP ----
+top_sqtls <- read_tsv(here("data/top_sQTLs_MAF05.tsv"))
+sqtls_coloc %<>%
+  left_join(
+    top_sqtls %>% select(top_pid, dist) %>%
+      rename("snp_dist" = "dist", 
+             "phenotype_id" = "top_pid")
+  )
+
+fig2B_coloc_dist <- 
+  ggplot(sqtls_coloc, aes(abs(snp_dist), fill = has_coloc)) + 
+  geom_density(alpha = .5) + 
+  scale_x_log10() + 
+  sqtl_manuscript_theme()
+fig2B_coloc_dist
+## 4) Delta PSI of top exon association ----
+top_sqtls_anc_alleles <- read_tsv(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
+sqtls_coloc %<>%
+  left_join(
+    top_sqtls_anc_alleles %>%
+      select(top_pid, delta_psi), 
+    by = c("phenotype_id" = "top_pid")
+  )
+
+ggplot(sqtls_coloc, aes(delta_psi, fill = has_coloc)) + 
+  geom_density(alpha = .5) + 
+  scale_x_log10()
