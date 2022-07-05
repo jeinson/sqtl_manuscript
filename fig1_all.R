@@ -187,6 +187,14 @@ sqtls_da$der_allele_hl <-
        )
   )
 
+# Save the results of this for downstream analysis. 
+sqtls_da %>%
+  select(group:top_pid, vid, anc_allele, slope,
+         anc_allele_freq, hi_allele, li_allele,
+         der_allele_hl) %>%
+  write_tsv(here("data/top_sQTLs_MAF05_derived_allele_effect_directions.tsv"))
+
+
 fig1E <- 
   ggplot(sqtls_da, aes(der_allele_hl, fill = der_allele_hl)) + 
   geom_bar() + 
