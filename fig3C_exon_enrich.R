@@ -9,14 +9,15 @@ library(doParallel)
 library(doSNOW)
 library(gridExtra)
 
-setwd("~/splicing_project/")
+library(here)
 
-source("MedianBootstrap.R")
-source("FlagOutlier.R")
-source("NiceFigures.R")
+source(here("auxillary_scripts/MedianBootstrap.R"))
+source(here("auxillary_scripts/FlagOutlier.R"))
+source(here("auxillary_scripts/NiceFigures.R"))
+source(here("sqtl_manuscript_functions.R"))
 ## Random Shuffle
-data_full = read.csv("top_sQTLs_MAF05_with_AF.csv")
-data_full_1 = read.csv("cross_tissue_nonsignificant_genes_with_AF.csv")
+data_full = read.csv(here("stuff_from_mariia/top_sQTLs_MAF05_with_AF.csv"))
+data_full_1 = read.csv(here("stuff_from_mariia/cross_tissue_nonsignificant_genes_with_AF.csv"))
 data_full_1 %>% select(intersect(colnames(data_full), colnames(data_full_1))) -> data_full_1
 data_full = data_full[!flag_outliers(data_full$ALIGN.LENGTH) & data_full$ALIGN.LENGTH >= 15,]
 data_full_1 = data_full_1[!flag_outliers(data_full_1$ALIGN.LENGTH) & data_full_1$ALIGN.LENGTH >= 15,]
@@ -69,8 +70,8 @@ p51 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, draw_quantiles
 
 
 ## Highly vs. lowly
-data_full = read.csv("top_sQTLs_MAF05_with_AF.csv")
-data_full_1 = read.csv("cross_tissue_nonsignificant_genes_with_AF.csv")
+data_full = read.csv(here("stuff_from_mariia/top_sQTLs_MAF05_with_AF.csv"))
+data_full_1 = read.csv(here("stuff_from_mariia/cross_tissue_nonsignificant_genes_with_AF.csv"))
 
 
 inter = intersect(colnames(data_full), colnames(data_full_1))
@@ -135,8 +136,8 @@ p52 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "GROUP
 
 
 
-data = read.csv("top_sQTLs_with_top_coloc_with_AF.csv")
-data2 = read.csv("cross_tissue_nonsignificant_genes_with_AF.csv")
+data = read.csv(here("stuff_from_mariia/top_sQTLs_with_top_coloc_with_AF.csv"))
+data2 = read.csv(here("stuff_from_mariia/cross_tissue_nonsignificant_genes_with_AF.csv"))
 
 data = unique.data.frame(data)
 data2 = unique.data.frame(data2)
@@ -190,7 +191,7 @@ p53 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, draw_quantiles
 
 ## Highly sQTLs vs. lowly sQTLs
 
-data_full = read.csv("top_sQTLs_with_top_coloc_with_AF.csv")
+data_full = read.csv(here("stuff_from_mariia/top_sQTLs_with_top_coloc_with_AF.csv"))
 
 data = data_full[data_full$has_coloc,]
 data2 = data_full[!data_full$has_coloc,]
@@ -241,14 +242,14 @@ p54 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "light
         scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, by = 25))
 
 ## Increasing vs. decreasing
+library(data.table)
+data  = fread(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 
-data  = fread("top_sQTLs_MAF05_w_anc_allele.tsv")
-
-data_full = read.csv("top_sQTLs_MAF05_with_AF.csv")
+data_full = read.csv(here("stuff_from_mariia/top_sQTLs_MAF05_with_AF.csv"))
 nrow(data_full)
 data_full = merge(data_full, data, by="top_pid", all = F)
 nrow(data_full)
-View(data_full)
+# View(data_full)
 
 data1 = data_full[data_full$anc_allele == data_full$li_allele,]
 data2 = data_full[data_full$anc_allele == data_full$hi_allele,]
@@ -299,7 +300,14 @@ p55 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "GROUP
 
 
 
-plot = grid.arrange(p11, p12, p13, p14, p15, p21, p22, p23, p24, p25, p31, p32, 
-                    p33, p34, p35, p41, p42, p43, p44, p45, p51, p52, p53, p54, p55, ncol=5, nrow=5)
-plot
-ggsave(plot, filename = "main_box_figure.png", path = "Data/visuals/", height = 15.0, width = 10.0,device='png', dpi=700)
+# plot = grid.arrange(p11, p12, p13, p14, p15, p21, p22, p23, p24, p25, p31, p32, 
+#                     p33, p34, p35, p41, p42, p43, p44, p45, p51, p52, p53, p54, p55, ncol=5, nrow=5)
+# plot
+# ggsave(plot, filename = "main_box_figure.png", path = "Data/visuals/", height = 15.0, width = 10.0,device='png', dpi=700)
+
+save_plot("fig3_exon_feature_comparisons.svg", width = 6, height = 6)
+grid.arrange(p11, p12, p13, p14, p15, p21, p22, p23, p24, p25, p31, p32, 
+             p33, p34, p35, p41, p42, p43, p44, p45, p51, p52, p53, p54, p55, ncol=5, nrow=5,
+             widths = c(1.5,1,1,1,1), 
+             heights = c(1,1,1,1,1.5))
+dev.off()
