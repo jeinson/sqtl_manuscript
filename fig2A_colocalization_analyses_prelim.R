@@ -29,6 +29,69 @@ results <- left_join(results, exon_gene_map, by = c("phenotype_id" = "ExonID"))
 results$pp_power <- with(results, PP.H3.abf + PP.H4.abf)
 results$pp_coloc <- with(results, PP.H4.abf / (PP.H3.abf + PP.H4.abf))
 
+# How many splicing events colocalize with something?
+# Add the Euclidean distance to (1,1)
+results %<>%
+  mutate(dist = sqrt((1-pp_power)^2+(1-pp_coloc)^2))
+results$has_coloc <- results$dist < .25
+
+exons_that_colocalize <- 
+  tapply(results$has_coloc, results$phenotype_id, function(x) as.logical(sum(x)))
+sum(exons_that_colocalize) / length(exons_that_colocalize)
+
+# Coloc heat map ----
+# Make a heatmap showing colocalization events across tissues and traits
+n_hits_per_group <-
+  results %>%
+  filter(has_coloc) %>%
+  count(qtl, gwas) %>%
+  rename("n" = "n_hits")
+
+n_total_hits <-
+  results %>%
+  count(qtl, gwas) %>%
+  rename("n" = "n_total")
+
+percentage_of_hits_per_tests <-
+  inner_join(n_hits_per_group, n_total_hits) %>%
+  mutate(percent_of_hits = n_hits / n_total)
+
+# Assign a ceiling for overlap percentage so
+outlier_cutoff <- with(percentage_of_hits_per_tests,
+                       quantile(percent_of_hits)[4] + 1.5 * IQR(percent_of_hits) )
+
+percentage_of_hits_per_tests$percent_of_hits[percentage_of_hits_per_tests$percent_of_hits > outlier_cutoff] <- outlier_cutoff
+
+tiss_order <- tapply(percentage_of_hits_per_tests$percent_of_hits, percentage_of_hits_per_tests$qtl, sum) %>% sort() %>% names
+trait_order <- tapply(percentage_of_hits_per_tests$percent_of_hits, percentage_of_hits_per_tests$gwas, sum) %>% sort() %>% names
+
+percentage_of_hits_per_tests$qtl <- factor(percentage_of_hits_per_tests$qtl,
+                                           levels = tiss_order)
+percentage_of_hits_per_tests$gwas <- factor(percentage_of_hits_per_tests$gwas,
+                                            levels = trait_order)
+
+library(pheatmap)
+n_hits_per_group_plt <-
+  spread(n_hits_per_group, key = "gwas", value = "n_hits") %>%
+  as.data.frame %>%
+  column_to_rownames("qtl")
+n_hits_per_group_plt[is.na(n_hits_per_group_plt)] <- 0
+
+trait_annotations <- read_tsv("/gpfs/commons/groups/lappalainen_lab/dglinos/projects/GTEx_eVariants/gwas_metadata.txt")
+trait_key <- deframe(trait_annotations %>% select(Tag, Category))
+trait_key <- sort(trait_key)
+trait_key <- trait_key[names(trait_key) %in% colnames(n_hits_per_group_plt)]
+n_hits_per_group_plt <- n_hits_per_group_plt[,names(trait_key)]
+
+# Save this for plotting in a separate script
+write_tsv(n_hits_per_group_plt, "data/n_gwas_hits_per_group_plt.tsv")
+trait_key <- data.frame(GWAS_trait = trait_key)
+pheatmap(log2(n_hits_per_group_plt + 1),
+         show_colnames = F, cluster_cols = F,
+         annotation_col = trait_key
+)
+
+# Filter down to top genes per trait ----
 # Only include genes that are in the top sQTL set
 # Include the terminal exon filter. 
 top_sQTLs <- read_tsv(here("data/top_sQTLs_MAF05.tsv"))
@@ -48,10 +111,6 @@ results_top_coloc <-
   dplyr::slice(1) %>%
   #slice(1) %>%
   ungroup
-
-# Add the Euclidean distance to (1,1)
-results_top_coloc %<>%
-  mutate(dist = sqrt((1-pp_power)^2+(1-pp_coloc)^2))
 
 # Test what Euclidean distance optimizes the number of things we call colocalized
 pct <- function(x) sum(x) / length(x)

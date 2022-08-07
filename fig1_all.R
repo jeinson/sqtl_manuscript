@@ -34,8 +34,9 @@ summary_table <- data.frame(
 
 summary_table$Tissue <- tissues
 
+# Supplementary figure, indvs to genes
 library(ggrepel)
-fig1B <- 
+figS1A <- 
   ggplot(summary_table, aes(`Total Individuals`, `Significant Genes`)) +
   geom_point() + 
   geom_smooth(method = "lm") + 
@@ -48,7 +49,7 @@ summary(
   lm(`Significant Genes` ~ `Total Individuals`, data = summary_table)
 )
 
-# Scratch that. Just make a barplot of the number of significant sQTLs mapped
+# Make a barplot of the number of significant sQTLs mapped
 # per tissue. Keep it simple. 
 gtex_colors <- read_tsv("/gpfs/commons/groups/lappalainen_lab/jeinson/data/gtex_stuff/gtex_colors_alt.txt")
 summary_table_w_color <- 
@@ -58,7 +59,7 @@ summary_table_w_color <-
   mutate(color_hex = paste0("#", color_hex)) %>%
  # arrange(`Significant Genes`) %>%
   mutate(tissue_site_detail = as_factor(tissue_site_detail))
-fig1B_alt <- 
+fig1B <- 
 ggplot(summary_table_w_color, aes(tissue_site_detail, `Significant Genes`, fill = Tissue)) + 
   geom_bar(stat = "identity") + 
   scale_fill_manual(values = summary_table_w_color$color_hex) + 
@@ -66,7 +67,36 @@ ggplot(summary_table_w_color, aes(tissue_site_detail, `Significant Genes`, fill 
   theme(legend.position = "none") + 
   coord_flip()
 
-#### 1C. sExon symmetry vs. all exons ####
+### Do the same thing with Leafcutter sQTLs for a comparison plot. 
+lc_root = "/gpfs/commons/datasets/controlled/GTEx/dbgap_restricted/data/gtex/exchange/GTEx_phs000424/exchange/analysis_releases/GTEx_Analysis_2017-06-05_v8/sqtl/GTEx_Analysis_v8_sQTL/"
+leafcutter_lists <- tissues %>% map(~ read_tsv(paste0(lc_root, .x, ".v8.sgenes.txt.gz")))
+names(leafcutter_lists) <- tissues
+
+qtl_lists <- leafcutter_lists
+sig_genes <- sapply(qtl_lists, function(x) sum(x$pval_beta < .05))
+tested_genes <- sapply(qtl_lists, nrow)
+percent_sig <- sig_genes / tested_genes
+
+summary_table_lc <- data.frame(
+  "Tissue" = tissues,
+  "Tested Genes" = tested_genes,
+  "Significant Genes" = sig_genes,
+  "Percent Significant" = percent_sig,
+  "Total Individuals" = n_per_tiss,
+  check.names = F
+)
+
+summary_table_lc$Tissue <- tissues
+
+# plot the plot
+figS1F <- list(PSI = select(summary_table, Tissue, `Percent Significant`),
+     Leafcutter = select(summary_table_lc, Tissue, `Percent Significant`)
+) %>% bind_rows(.id = "Splicing quantification method") %>%
+  ggplot(aes(Tissue, `Percent Significant`, fill = `Splicing quantification method`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust=1))
+
 
 # All sQTLs
 sqtls <- read_tsv(here("data/top_sQTLs_MAF05.tsv"))
@@ -79,20 +109,9 @@ sqtls %<>%
   mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons))
 sqtls %<>% filter(!terminal_exon_flag)
 
-### Figure 1S: Location of sExon in CDS ####
-sExon_cds_location <- sqtls$exon_number / sqtls$n_exons
-fig_1S <- 
-  ggplot() + 
-  geom_histogram(aes(x = sExon_cds_location), bins = 10, 
-                 color = "black", fill = "darkolivegreen3") + 
-  xlab("Normalized location in CDS") + 
-  ylab("sExons") + 
-  sqtl_manuscript_theme()
-library(spgs)
-chisq.unif.test(sExon_cds_location)
-
+## Fig 1S1: sQTL length comparison ----
 # Calculate the lengths of exons
-exon_id_map <- read_rds("../../../data/gtex_stuff/gtex_v8_exon_id_map.rds")
+exon_id_map <- read_rds(here("data/gtex_v8_exon_id_map.rds"))
 sqtls$pid <- exon_id_map[sqtls$top_pid]
 
 calculate_exon_length <- function(x){
@@ -101,6 +120,7 @@ calculate_exon_length <- function(x){
   end = as.integer(k[3])
   end - start + 1
 }
+
 
 sqtls$exon_length <- sapply(
   sqtls$pid, calculate_exon_length
@@ -112,6 +132,78 @@ hist(log10(sqtls$exon_length), col = "cornflowerblue",
 lim <- quantile(sqtls$exon_length)[4] + (1.5 * IQR(sqtls$exon_length))
 abline(v = log10(lim), col = "red", lty = 2)
 
+# Also grab non-sQTLS
+non_sqtls <- read_tsv(here("data/cross_tissue_nonsignificant_genes.tsv")) %>%
+  mutate(pid = exon_id_map[top_pid]) %>%
+  mutate(exon_number = str_split(top_pid, "_") %>% map(2) %>% as.integer) %>%
+  left_join(n_exons_per_gene, by = c("group" = "gene")) %>% 
+  mutate(terminal_exon_flag = (exon_number == 1) | (exon_number == n_exons)) %>%
+  filter(!terminal_exon_flag) 
+
+non_sqtls$exon_length <- sapply(non_sqtls$pid, calculate_exon_length)
+
+exon_lengths <- 
+  rbind(
+    non_sqtls %>% 
+      select(exon_length) %>%
+      mutate(tag = "Variable exons\nwith no sQTL") %>%
+      mutate(outlier = flag_outliers(exon_length)),
+    sqtls %>% 
+      select(exon_length) %>% 
+      mutate(tag = "sExons") %>%
+      mutate(outlier = flag_outliers(exon_length))
+  )
+exon_lengths$tag <- as_factor(exon_lengths$tag)
+
+fig_S1B <- ggplot(exon_lengths %>% filter(!outlier), aes(tag, exon_length)) + 
+  geom_violin(aes(fill = tag)) + 
+  scale_fill_brewer(palette = "Set3") + 
+  geom_boxplot(width = .2)  + 
+  sqtl_manuscript_theme() + 
+  theme(legend.position = "none") + 
+  xlab("") + 
+  ylab("Exon Length (bp)")
+
+wilcox.test(exon_length ~ tag, data = exon_lengths %>% filter(!outlier))
+
+#### 1C. sExon symmetry vs. all exons ####
+sExon_cds_location <- sqtls$exon_number / sqtls$n_exons
+non_sExon_cds_location <- non_sqtls$exon_number / non_sqtls$n_exons
+
+# fig_S1D <- 
+#   ggplot() + 
+#   geom_histogram(aes(x = sExon_cds_location), bins = 10, 
+#                  color = "black", fill = "darkolivegreen3") + 
+#   xlab("Normalized location in CDS") + 
+#   ylab("sExons") + 
+#   sqtl_manuscript_theme()
+# library(spgs)
+chisq.unif.test(sExon_cds_location)
+
+exon_cds_locations <- 
+  rbind(
+    enframe(sExon_cds_location) %>% mutate(tag = 'sExons'),
+    enframe(non_sExon_cds_location) %>% mutate(tag = 'non sExons')
+  )
+
+fig_S1C<- 
+  ggplot(exon_cds_locations, aes(value, fill = tag)) + 
+  geom_density(alpha = .5) + 
+  scale_fill_brewer(palette = "Set3") + 
+  xlab("Exon's relative position in transcript") +
+  sqtl_manuscript_theme()
+
+ks.test(sExon_cds_location, non_sExon_cds_location)
+wilcox.test(sExon_cds_location, non_sExon_cds_location)
+
+### Save Figure S2
+# library(cowplot)
+# save_plot("figS2_sexon_length_and_positions.svg", width = 7, height = 3)
+# plot_grid(fig_S2A, fig_S2B, align = "hv", labels = "AUTO", 
+#           rel_widths = c(.4, .6))
+# dev.off()
+
+#### All exon symmetry
 # Get information about ALL exons
 library(rtracklayer)
 gtf <- rtracklayer::import("../data/gencode.v26.GRCh38.GTExV8.genes.gtf")
@@ -180,9 +272,9 @@ sqtls_da$der_allele_hl <-
        # This is based on the ancestral allele, so flip it since we're interested
        # in the ancestral allele
        ifelse(anc_allele == hi_allele,
-              "Decreases PSI", 
+              "Decreases\nPSI", 
               ifelse(anc_allele == li_allele, 
-                     "Increases PSI", NA
+                     "Increases\nPSI", NA
               )
        )
   )
@@ -229,12 +321,12 @@ KS_test_results <-
   sapply(X = delta_psi, FUN = function(x) {
   subset(sqtls_da, !is.na(der_allele_hl) & delta_psi > x) %>% 
       split(.$der_allele_hl) %>%
-      ks.test(x = .[['Increases PSI']]$der_allele_freq, y = .[['Decreases PSI']]$der_allele_freq)
+      ks.test(x = .[['Increases\nPSI']]$der_allele_freq, y = .[['Decreases\nPSI']]$der_allele_freq)
   }) %>%
   t %>% as.data.frame
 KS_test_results$delta_psi <- delta_psi       
 
-fig1G <- 
+figS1D <- 
   ggplot(KS_test_results, aes(delta_psi, unlist(statistic))) + 
   geom_point() + 
   geom_line() + 
@@ -272,22 +364,6 @@ sqtls_vep %<>%
 # Save this for running VEP
 write_tsv(sqtls_vep, "cross_tissue_top_sQTLs/top_sQTLs_MAF05.var", col_names = F)
 
-
-# sqtls_annot <- sqtls_da %>% left_join(sqtl_info) 
-# sqtls_annot %<>% 
-#   mutate(annotations = annotations %>% str_split(",") %>% map_chr(1)) %>%
-#   select(annotations, der_allele_hl) %>%
-#   table %>%
-#   .[-3,]
-# 
-# sqtls_annot %>% 
-#   select(annotations, der_allele_hl) %>%
-#   table %>%
-#   apply(2, prop.table)
-#   
-# ggplot(aes(annotations, color = der_allele_hl)) + 
-#   geom_bar(position = "dodge")
-
 ### After running:
 library(vcfR)
 vcf_fp = "/gpfs/commons/groups/lappalainen_lab/jeinson/projects/modified_penetrance/sQTL_v8_anno/cross_tissue_top_sQTLs/top_sQTLs_MAF05.annotated.vcf"
@@ -311,53 +387,80 @@ sqtl_anno_table <-
   with(sqtls_annotated_subset 
        #%>% filter(delta_psi > .05)
        , table(annotations, der_allele_hl))
-chisq.test(sqtl_anno_table)
+
+normalize <- function(x) x / sum(x)
+sqtl_anno_table %<>% apply(2, normalize)
 
 sqtl_anno_table <- sqtl_anno_table %>%
   data.frame %>%
-  set_colnames(c("annotation", "exonic_DA_effect", "count"))
-ggplot(sqtl_anno_table, aes(x = exonic_DA_effect, fill = annotation)) + 
- # geom_text(aes(label = Freq)) +
-  geom_bar(aes(y = ..count.. / sum(..count..)), position = "dodge") 
+  rownames_to_column("annotation") %>%
+  pivot_longer(names_to = "exonic_DA_effect", 
+               cols = c("Decreases.PSI", "Increases.PSI"), 
+               names_repair = "minimal")
 
-ggplot(sqtl_anno_table, aes(annotation, ))
+figS1E <- 
+  ggplot(sqtl_anno_table, aes(x = exonic_DA_effect, y = value, fill = annotation)) + 
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_brewer(palette = "Set2") + 
+  sqtl_manuscript_theme() + 
+  labs(fill = "sVariant\nAnnotation") + 
+  xlab("sVariant derived allele effect") + 
+  ylab("Proportion in group")
 
 #### Plot the Plots! ####
-fig_w = 5
-fig_h = 5
-save_plot("fig1B_sqtl_totals_summary.svg", width = fig_w, height = fig_h)
-fig1B
-dev.off()
-
-save_plot("fig1B_sqtl_counts_per_tiss.svg", width = fig_w, height = fig_h) 
-fig1B_alt
-dev.off()
-
-save_plot("fig1C_sqtl_symmetry_barplot.svg", width = 2, height = fig_h)
-fig1C
-dev.off()
-
-save_plot("fig1D_high_inclusion_allele_frequency_distribution.svg",
-          width = fig_w, height = fig_h)
-fig1D
-dev.off()
-
-save_plot("fig1E_n_high_vs_low_effect_sqtls.svg", width = 2, height = fig_h)
-fig1E
-dev.off()
-
-save_plot("fig1F_derived_allele_effect_density.svg", width = fig_w, height = fig_h)
-fig1F
-dev.off()
-
-save_plot("fig1G_derived_allele_effect_density_across_cutoffs.svg", width = fig_w, height = fig_h)
-fig1G
-dev.off()
-
-save_plot("fig1S_sexon_cds_location.svg", width = 3, height = 2)
-fig_1S
-dev.off()
+# fig_w = 5
+# fig_h = 5
+# save_plot("fig1B_sqtl_totals_summary.svg", width = fig_w, height = fig_h)
+# fig1B
+# dev.off()
+# 
+# save_plot("fig1B_sqtl_counts_per_tiss.svg", width = fig_w, height = fig_h) 
+# fig1B_alt
+# dev.off()
+# 
+# save_plot("fig1C_sqtl_symmetry_barplot.svg", width = 2, height = fig_h)
+# fig1C
+# dev.off()
+# 
+# save_plot("fig1D_high_inclusion_allele_frequency_distribution.svg",
+#           width = fig_w, height = fig_h)
+# fig1D
+# dev.off()
+# 
+# save_plot("fig1E_n_high_vs_low_effect_sqtls.svg", width = 2, height = fig_h)
+# fig1E
+# dev.off()
+# 
+# save_plot("fig1F_derived_allele_effect_density.svg", width = fig_w, height = fig_h)
+# fig1F
+# dev.off()
+# 
+# save_plot("fig1G_derived_allele_effect_density_across_cutoffs.svg", width = fig_w, height = fig_h)
+# fig1G
+# dev.off()
+# 
+# save_plot("fig1S_sexon_cds_location.svg", width = 3, height = 2)
+# fig_1S
+# dev.off()
 
 # Cowplot everything
 library(cowplot)
-plot_grid(fig1B, fig1C, fig1D, fig1E, fig1F, nrow = 2)
+f1_top <- plot_grid(NULL, fig1B, fig1C, rel_widths = c(1.5, 2, 1), nrow = 1, 
+                    labels = "AUTO")
+f1_bot <- plot_grid(fig1D, fig1E, fig1F, rel_widths = c(1.5, 1, 1.5), nrow = 1, 
+                    labels = c("D", "E", "F"))
+save_plot("fig1_full.svg", width = 12, height = 8)
+plot_grid(f1_top, f1_bot, nrow = 2)
+dev.off()
+
+# Cowplot the Supplemental figures Part 1
+S1_topR <- plot_grid(fig_S1B, fig_S1C, figS1D, figS1E, nrow = 2,
+                     rel_widths = c(1, 1.7, 1, 1.7), labels = list("B", "C", "D", "E"))
+S1_top <- plot_grid(figS1A, S1_topR, rel_widths = c(1, 1.3))
+fig_S1 <- plot_grid(S1_top, figS1F, nrow = 2, rel_heights = c(1.2, 1), 
+                    labels = list("A", "F"))
+
+save_plot("fig_S1_sQTL_supplements.svg", width = 12, height = 9)
+fig_S1
+dev.off()
+

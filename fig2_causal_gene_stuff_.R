@@ -18,6 +18,7 @@ tissues <- read_lines("../sQTL_v8_anno/completed_tissues.txt")
 tissues <- tissues[-which(tissues == "Colon_Transverse")]
 
 ct_table_list <- list()
+mean_exon_length_mann_test_list <- list()
 for(tiss in tissues){
   message(tiss)
   overlaps <- read_tsv(sprintf("credible_set_overlaps/%s_cs_overlaps.tsv", tiss))
@@ -86,9 +87,18 @@ for(tiss in tissues){
   # splicing effect that's appearing as an eQTL. 
   all_css_ol$total_exon_length <- map_dbl(all_css_ol$exon_lengths, sum)
   all_css_ol$total_exon_length_norm <- inv_norm(all_css_ol$total_exon_length)
-  ggplot(all_css_ol, aes(total_exon_length_norm, color = cs_has_ol)) + 
+  ggplot(all_css_ol, aes(total_exon_length, color = cs_has_ol)) + 
     geom_density()
+  # Do a t-test for difference in means
+  mean_exon_length_mann_test_list[[tiss]] <- 
+    wilcox.test(formula = total_exon_length ~ cs_has_ol, data = all_css_ol, 
+                conf.int = T, conf.level = .95)
   
+  # Try doing this as a logistic regression
+  logistic_regression <- 
+    glm(as.numeric(cs_has_ol) ~ total_exon_length, 
+        family = binomial(link = "logit"), 
+        data = all_css_ol)
 }
 
 ### Now plot the overall trend across tissues ####
@@ -145,3 +155,38 @@ save_plot("fig2A_shared_causal_gene_symmetry_enrichment.svg", width = 8, height 
 plot_grid(fisher.test.result.figure, n_per_tiss_barplot, 
           ncol = 2, rel_widths = c(4, 1), align = "h")
 dev.off()
+
+### Plot the results of a T-test across tissues ####
+extract_data_from_mann_test <- function(mann_test){
+  tibble(
+    p.value = mann_test$p.value,
+    estimate = mann_test$estimate, 
+    conf.int.low = mann_test$conf.int[1], 
+    conf.int.hi = mann_test$conf.int[2]
+  )
+}
+
+mann.test.results <- 
+  bind_rows(lapply(mean_exon_length_mann_test_list, extract_data_from_mann_test), .id = "tissue")
+
+mann.test.results$n_es_genes_per_tiss <- n_es_genes_per_tiss
+
+# Put in the same order as the fisher.test for symmetry
+# mann.test.results$tissue <- fct_inorder(fisher.test.results$tissue)
+mann.test.results <- 
+  mann.test.results[match(fisher.test.results$tissue, mann.test.results$tissue),]
+
+
+library(ggplot2)
+mann.test.results.figure <- 
+  ggplot(mann.test.results, 
+         aes(tissue, estimate, 
+             ymin = conf.int.low, ymax = conf.int.hi)) + 
+  geom_point() + 
+  geom_pointrange(color = ifelse(fisher.test.results$p.value > .05, "deepskyblue4", "deepskyblue")) +
+  geom_hline(yintercept = 0, lty = 2, color = "red") + 
+  ylab("Difference in total spliced exon length between sQTLs that share a causal variant with an eQTL\nMann-Whitey U-Test Statistic +/- 95% Confidence Interval") +
+  coord_flip() + 
+  sqtl_manuscript_theme()
+
+mann.test.results.figure

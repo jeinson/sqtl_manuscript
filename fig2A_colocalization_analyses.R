@@ -22,12 +22,15 @@ sqtls_coloc$has_coloc <- sqtls_coloc$dist < .25
 # Plot PP.power vs. PP.coloc for all genes
 fig2S_1 <- 
   ggplot(sqtls_coloc, aes(pp_power, pp_coloc, color = has_coloc)) + 
-  geom_point() + 
+  geom_point(alpha = .3) + 
   ylab("PP coloc (PP.H4 / (PP.H3 + PP.H4))") +
   xlab("PP power (PP.H3 + PP.H4)") +
-  sqtl_manuscript_theme()
+  sqtl_manuscript_theme() + 
+  theme(legend.position = "none")
 
+save_plot("fig2A_coloc_dotplot.png", width = 3, height = 3, units = "in", res = 300, save_fn = png)
 fig2S_1
+dev.off()
 
 ## 1) How many sQTLs colocalize with something? ----
 fig2A <- 
@@ -38,11 +41,15 @@ fig2A <-
   geom_bar(fill = "cornflowerblue") + 
   geom_text(stat='count', aes(label=..count..), vjust=-1) +
   ylab("ψQTL genes") + 
-  ylim(0, 4500) + 
+  ylim(0, 5000) + 
   xlab("") +
   sqtl_manuscript_theme()
 
 fig2A
+
+save_plot("fig2A_n_coloc_events.svg", width = 3, height = 3)
+fig2A
+dev.off()
 
 ## 2) Contribution of derived alleles and exon symmetry ----
 # Calculate lengths of exons
@@ -115,6 +122,25 @@ da_fisher_test
 da_fisher_test <- 
   fisher.test.to.data.frame(da_fisher_test)
 
+## Combine results and plot 
+fish_plt_table <- 
+  rbind(symmetry_fisher_test, da_fisher_test) %>%
+  mutate(test = c("Exon Symmetry", "Derived allele\neffect direction"))
+
+fig2B <- 
+  ggplot(fish_plt_table, aes(log10(estimate), test)) + 
+  geom_pointrange(aes(xmin = log10(conf.int.low), xmax = log10(conf.int.high))) + 
+  sqtl_manuscript_theme() + 
+  theme(axis.line.y = element_blank()) + 
+  geom_vline(xintercept = 0, lty = 2) + 
+  geom_text(aes(x = .3, label = round(p.value, 4))) +
+  xlab("log10(Odds Ratio)") + 
+  ylab("")
+
+save_plot("fig2B_exon_coloc_fisher_tests.svg", width = 5, height = 1.5)
+fig2B
+dev.off()
+
 ## 3) Distance from Exon to sSNP ----
 top_sqtls <- read_tsv(here("data/top_sQTLs_MAF05.tsv"))
 sqtls_coloc %<>%
@@ -130,6 +156,7 @@ fig2B_coloc_dist <-
   scale_x_log10() + 
   sqtl_manuscript_theme()
 fig2B_coloc_dist
+
 ## 4) Delta PSI of top exon association ----
 top_sqtls_anc_alleles <- read_tsv(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 sqtls_coloc %<>%
@@ -141,4 +168,5 @@ sqtls_coloc %<>%
 
 ggplot(sqtls_coloc, aes(delta_psi, fill = has_coloc)) + 
   geom_density(alpha = .5) + 
-  scale_x_log10()
+  scale_x_log10() + 
+  sqtl_manuscript_theme()
