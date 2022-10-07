@@ -16,8 +16,8 @@ source(here("auxillary_scripts/FlagOutlier.R"))
 source(here("auxillary_scripts/NiceFigures.R"))
 source(here("sqtl_manuscript_functions.R"))
 ## Random Shuffle
-data_full = read.csv(here("stuff_from_mariia/top_sQTLs_MAF05_with_AF.csv"))
-data_full_1 = read.csv(here("stuff_from_mariia/cross_tissue_nonsignificant_genes_with_AF.csv"))
+data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
+data_full_1 = read.csv(here("data/cross_tissue_nonsignificant_genes_with_AF.csv"))
 data_full_1 %>% select(intersect(colnames(data_full), colnames(data_full_1))) -> data_full_1
 data_full = data_full[!flag_outliers(data_full$ALIGN.LENGTH) & data_full$ALIGN.LENGTH >= 15,]
 data_full_1 = data_full_1[!flag_outliers(data_full_1$ALIGN.LENGTH) & data_full_1$ALIGN.LENGTH >= 15,]
@@ -70,8 +70,8 @@ p51 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, draw_quantiles
 
 
 ## Highly vs. lowly
-data_full = read.csv(here("stuff_from_mariia/top_sQTLs_MAF05_with_AF.csv"))
-data_full_1 = read.csv(here("stuff_from_mariia/cross_tissue_nonsignificant_genes_with_AF.csv"))
+data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
+data_full_1 = read.csv(here("data/cross_tissue_nonsignificant_genes_with_AF.csv"))
 
 
 inter = intersect(colnames(data_full), colnames(data_full_1))
@@ -136,8 +136,8 @@ p52 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "GROUP
 
 
 
-data = read.csv(here("stuff_from_mariia/top_sQTLs_with_top_coloc_with_AF.csv"))
-data2 = read.csv(here("stuff_from_mariia/cross_tissue_nonsignificant_genes_with_AF.csv"))
+data = read.csv(here("data/top_sQTLs_with_top_coloc_with_AF.csv"))
+data2 = read.csv(here("data/cross_tissue_nonsignificant_genes_with_AF.csv"))
 
 data = unique.data.frame(data)
 data2 = unique.data.frame(data2)
@@ -191,7 +191,7 @@ p53 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, draw_quantiles
 
 ## Highly sQTLs vs. lowly sQTLs
 
-data_full = read.csv(here("stuff_from_mariia/top_sQTLs_with_top_coloc_with_AF.csv"))
+data_full = read.csv(here("data/top_sQTLs_with_top_coloc_with_AF.csv"))
 
 data = data_full[data_full$has_coloc,]
 data2 = data_full[!data_full$has_coloc,]
@@ -245,7 +245,7 @@ p54 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "light
 library(data.table)
 data  = fread(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 
-data_full = read.csv(here("stuff_from_mariia/top_sQTLs_MAF05_with_AF.csv"))
+data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
 nrow(data_full)
 data_full = merge(data_full, data, by="top_pid", all = F)
 nrow(data_full)
