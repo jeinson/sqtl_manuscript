@@ -1,13 +1,8 @@
 library(ggplot2)
 library(ggpubr)
-library(stats)
 library(dplyr)
-library(entropy)
-library(mltools)
-library(foreach)
-library(doParallel)
-library(doSNOW)
 library(gridExtra)
+library(data.table)
 
 library(here)
 
@@ -242,14 +237,11 @@ p54 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "light
         scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, by = 25))
 
 ## Increasing vs. decreasing
-library(data.table)
-data  = fread(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 
+data  = fread(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
-nrow(data_full)
+
 data_full = merge(data_full, data, by="top_pid", all = F)
-nrow(data_full)
-# View(data_full)
 
 data1 = data_full[data_full$anc_allele == data_full$li_allele,]
 data2 = data_full[data_full$anc_allele == data_full$hi_allele,]
