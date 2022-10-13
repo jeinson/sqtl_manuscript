@@ -300,9 +300,9 @@ data_full_1 = data_full_1[!flag_outliers(data_full_1$ALIGN.LENGTH) & data_full_1
 data_full %>% select(intersect(colnames(data_full), colnames(data_full_1))) -> data_full
 data_full_1 = read.csv("data/cross_tissue_constitutive_exons_with_AF.csv")
 
-data2 = data_full
+data2 = data_full_1
 
-data = data_full_1
+data = data_full
 
 
 data = unique.data.frame(data)
