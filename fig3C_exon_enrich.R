@@ -10,7 +10,8 @@ source(here("auxillary_scripts/MedianBootstrap.R"))
 source(here("auxillary_scripts/FlagOutlier.R"))
 source(here("auxillary_scripts/NiceFigures.R"))
 source(here("sqtl_manuscript_functions.R"))
-## Random Shuffle
+
+## Random Shuffle ----
 data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
 data_full_1 = read.csv(here("data/cross_tissue_nonsignificant_genes_with_AF.csv"))
 data_full_1 %>% select(intersect(colnames(data_full), colnames(data_full_1))) -> data_full_1
@@ -64,7 +65,7 @@ p51 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, draw_quantiles
 
 
 
-## Highly vs. lowly
+## Highly vs. lowly ----
 data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
 data_full_1 = read.csv(here("data/cross_tissue_nonsignificant_genes_with_AF.csv"))
 
@@ -127,7 +128,7 @@ p52 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "GROUP
         scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, by = 25))
 
 
-## sQTL vs Non sQTL
+## sQTL vs Non sQTL ----
 
 
 
@@ -184,7 +185,7 @@ p53 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, draw_quantiles
         scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, by = 25))
 
 
-## Highly sQTLs vs. lowly sQTLs
+## Colocazing vs. Non-colocalizing  ----
 
 data_full = read.csv(here("data/top_sQTLs_with_top_coloc_with_AF_new.csv"))
 
@@ -236,7 +237,7 @@ p54 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "light
         stat_compare_means(label.y = 110, aes(label = paste0("p =", ..p.format..))) + xlab("Coloc vs. non_coloc") + 
         scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, by = 25))
 
-## Increasing vs. decreasing
+## Increasing vs. decreasing ----
 
 data  = fread(here("data/top_sQTLs_MAF05_w_anc_allele.tsv"))
 data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
@@ -290,7 +291,7 @@ p55 = ggviolin(to_draw, x="GROUP", y="ALIGN.LENGTH",  rug = TRUE, color = "GROUP
         stat_compare_means(label.y = 110, aes(label = paste0("p =", ..p.format..))) + xlab("Incr vs. decr") + 
         scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, by = 25))
 
-# Variable vs. Constitutive
+# Variable vs. Constitutive ----
 
 data_full = read.csv(here("data/top_sQTLs_MAF05_with_AF.csv"))
 data_full_1 = read.csv(here("data/cross_tissue_nonsignificant_genes_with_AF.csv"))
