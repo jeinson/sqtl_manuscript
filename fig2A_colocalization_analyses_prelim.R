@@ -84,7 +84,7 @@ trait_key <- trait_key[names(trait_key) %in% colnames(n_hits_per_group_plt)]
 n_hits_per_group_plt <- n_hits_per_group_plt[,names(trait_key)]
 
 # Save this for plotting in a separate script
-write_tsv(n_hits_per_group_plt, "data/n_gwas_hits_per_group_plt.tsv")
+write.table(n_hits_per_group_plt, "data/n_gwas_hits_per_group_plt.tsv", sep = "\t")
 trait_key <- data.frame(GWAS_trait = trait_key)
 pheatmap(log2(n_hits_per_group_plt + 1),
          show_colnames = F, cluster_cols = F,

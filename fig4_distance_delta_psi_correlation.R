@@ -3,7 +3,7 @@ library(ggExtra)
 library(stringr)
 library(data.table)
 
-source("./NiceFigures.R")
+source("sqtl_manuscript_functions.R")
 
 gnomad = fread("./data/gnomad.v2.1.1.lof_metrics.by_gene.txt")
 head(gnomad)
@@ -46,12 +46,14 @@ plot = ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model
                            " P =",signif(summary(fit)$coef[2,4], 5),
                            "cor =", signif(cor(data_sub$delta_psi, 
                                                data_sub$EUCL.DISTANCE),5)), x=0.25, y=13.0) +
-        gtex_v8_figure_theme()
+        sqtl_manuscript_theme()
+
 plot = ggExtra::ggMarginal(plot, type = "histogram")
 ggsave(plot = plot, filename = paste0("delta_psi_distance_correlation.png"), path = "~/splicing_project/Data/visuals/AlphaFold_predictions/", height = 5.11, width = 7.92,device='png', dpi=700)
 
 
-plot = ggplot(data = data2, aes(x=as.numeric(EUCL.DISTANCE))) + geom_density() + gtex_v8_figure_theme() +
+plot = ggplot(data = data2, aes(x=as.numeric(EUCL.DISTANCE))) + geom_density() +
+        sqtl_manuscript_theme() +
         labs(title=paste("min = ",signif(min(data_sub$EUCL.DISTANCE), 5),
                    " median =",signif(median(data_sub$EUCL.DISTANCE),5 ),
                    " mean =",signif(mean(data_sub$EUCL.DISTANCE), 5),
@@ -63,7 +65,6 @@ ggsave(plot = plot, filename = paste0("structure_distance_distribution.png"), pa
 
 
 fit = lm(EUCL.DISTANCE~oe_lof_upper, data_sub)
-
 plot = ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
         geom_point() +
         stat_smooth(method = "lm", col = "red") +
@@ -73,7 +74,7 @@ plot = ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model
                                     " P =",signif(summary(fit)$coef[2,4], 5),
                                     "cor =", signif(cor(data_sub$oe_lof_upper, 
                                                         data_sub$EUCL.DISTANCE),5)), x=1.0, y=13.0) +
-        gtex_v8_figure_theme()
+        sqtl_manuscript_theme()
 plot = ggExtra::ggMarginal(plot, type = "histogram")
 plot
 ggsave(plot = plot, filename = paste0("loeuf_distance_correlation.png"), path = "~/splicing_project/Data/visuals/AlphaFold_predictions/", height = 5.11, width = 7.92,device='png', dpi=700)

@@ -460,7 +460,7 @@ S1_top <- plot_grid(figS1A, S1_topR, rel_widths = c(1, 1.3))
 fig_S1 <- plot_grid(S1_top, figS1F, nrow = 2, rel_heights = c(1.2, 1), 
                     labels = list("A", "F"))
 
-save_plot("fig_S1_sQTL_supplements.svg", width = 12, height = 9)
+save_plot("figS1_sQTL_supplements.svg", width = 12, height = 9)
 fig_S1
 dev.off()
 

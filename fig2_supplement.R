@@ -1,7 +1,7 @@
 # Plot the colocalization heatmap figure
 # The data is saved from fig2A_colocalization_analysis_prelim.R script
 
-
+rm(list = ls())
 library(here)
 source(here("myPackages.R"))
 source(here("sqtl_manuscript_functions.R"))

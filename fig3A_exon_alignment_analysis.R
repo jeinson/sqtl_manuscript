@@ -31,6 +31,10 @@ alignments$exon_in_MANE <-
   !(alignments$MAPPED.TO.OTHER | is.na(alignments$MAPPED.TO.OTHER)) | 
   !is.na(alignments$MAPPED.TO.OTHER) # yikes!
 
+# How many do we get?
+table(alignments$exon_in_MANE)
+nrow(alignments)
+
 # Add median PSI
 median_psi <- read_tsv(here("data/top_sQTLs_median_psi.tsv"))
 alignments <- left_join(alignments, median_psi, 
@@ -38,8 +42,13 @@ alignments <- left_join(alignments, median_psi,
 
 # How does this match up?
 library(ggplot2)
-ggplot(alignments, aes(median_psi, fill = exon_in_MANE)) + 
+fig2A <- 
+  ggplot(alignments, aes(median_psi, fill = exon_in_MANE)) + 
   geom_density(alpha = .5) + 
   xlab("Median PSI") +
-  sqtl_manuscript_theme()
+  sqtl_manuscript_theme() + 
+  theme(legend.position = c(.4, .8))
 
+save_plot("fig3A_psi_in_mane_density.svg", width = 3, height = 3)
+fig2A
+dev.off()
