@@ -166,6 +166,28 @@ fig_S1B <- ggplot(exon_lengths %>% filter(!outlier), aes(tag, exon_length)) +
 
 wilcox.test(exon_length ~ tag, data = exon_lengths %>% filter(!outlier))
 
+#### 1S2: Distance from TSS and p-val ####
+bin_width = 10000
+prop_of_sSNPs_in_bins  <- 
+  prop.table(table(cut(sqtls$dist, breaks = seq(-1e6, 1e6, by = bin_width)))) %>% 
+  enframe %>%
+  mutate(breaks = seq(-1e6, 1e6 - 1, by = bin_width))
+
+ggplot(prop_of_sSNPs_in_bins, aes(breaks, as.numeric(value))) + 
+  geom_line() + 
+  geom_point(aes(sqtls$delta_psi, -log10(sqtls$bpval)))
+
+ylim.prim <- range(0, max(prop_of_sSNPs_in_bins$value))
+ylim.sec <- range(0, max(-log10(sqtls$bpval)))
+diff <- ylim.prim[2] / ylim.sec[2]
+
+fig_S1C <- ggplot(sqtls) + 
+  geom_point(aes(x = dist, y = -log10(bpval))) + 
+  geom_line(aes(x = prop_of_sSNPs_in_bins$breaks, y = as.numeric(prop_of_sSNPs_in_bins$value) / diff)) + 
+  sqtl_manuscript_theme()
+
+fig_S1C
+
 #### 1C. sExon symmetry vs. all exons ####
 sExon_cds_location <- sqtls$exon_number / sqtls$n_exons
 non_sExon_cds_location <- non_sqtls$exon_number / non_sqtls$n_exons
