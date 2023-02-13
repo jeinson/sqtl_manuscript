@@ -429,42 +429,87 @@ figS1E <-
   xlab("sVariant derived allele effect") + 
   ylab("Proportion in group")
 
-#### Plot the Plots! ####
-# fig_w = 5
-# fig_h = 5
-# save_plot("fig1B_sqtl_totals_summary.svg", width = fig_w, height = fig_h)
-# fig1B
-# dev.off()
-# 
-# save_plot("fig1B_sqtl_counts_per_tiss.svg", width = fig_w, height = fig_h) 
-# fig1B_alt
-# dev.off()
-# 
-# save_plot("fig1C_sqtl_symmetry_barplot.svg", width = 2, height = fig_h)
-# fig1C
-# dev.off()
-# 
-# save_plot("fig1D_high_inclusion_allele_frequency_distribution.svg",
-#           width = fig_w, height = fig_h)
-# fig1D
-# dev.off()
-# 
-# save_plot("fig1E_n_high_vs_low_effect_sqtls.svg", width = 2, height = fig_h)
-# fig1E
-# dev.off()
-# 
-# save_plot("fig1F_derived_allele_effect_density.svg", width = fig_w, height = fig_h)
-# fig1F
-# dev.off()
-# 
-# save_plot("fig1G_derived_allele_effect_density_across_cutoffs.svg", width = fig_w, height = fig_h)
-# fig1G
-# dev.off()
-# 
-# save_plot("fig1S_sexon_cds_location.svg", width = 3, height = 2)
-# fig_1S
-# dev.off()
+# S1G Cross tissue pi1 scores ----
+dat <- read.csv(here("data/sqtl_pi1_matrix.csv"), row.names = 1)
 
+# Attach color information
+gtex_key <- read_tsv("data/gtex_colors.txt")
+
+attach(gtex_key)
+names(tissue_abbrv) <- tissue_id
+color_hex <- str_c("#", color_hex)
+names(color_hex) <- tissue_id
+
+# Stupid fix to stupid problem
+names(color_hex)[names(color_hex) == "Cells_EBV-transformed_lymphocytes"] <- 
+  "Cells_EBV.transformed_lymphocytes"
+
+# Make the clustering order based on the ASE_sharing_OA
+
+distances <- dist(dat)
+clustering <- hclust(distances)
+row_order<- colnames(dat)[clustering$order]
+
+dat_df <- dat %>%
+  rownames_to_column("Test") %>%
+  gather("Replication", "val", -"Test")
+
+dat_df$Test <- factor(dat_df$Test, levels = rev(row_order), ordered = T)
+dat_df$Replication <- factor(dat_df$Replication, levels = row_order, ordered = T)
+axis_colors <- color_hex[row_order]
+
+library(RColorBrewer)
+# figS1G <- 
+#   ggplot(dat_df, aes(y = Test, x = Replication, fill = val)) +
+#   geom_tile(color = "grey") + 
+#   # scale_fill_gradientn("π1", 
+#   #                     colors = c(
+#   #                       rgb(55, 48, 46, maxColorValue = 255), 
+#   #                       rgb(148, 31, 25, maxColorValue = 255), 
+#   #                       rgb(249, 53, 25, maxColorValue = 255), 
+#   #                       rgb(255, 183, 49, maxColorValue = 255), 
+#   #                       rgb(255, 249, 213, maxColorValue = 255)),
+#   #                     na.value = "black") + 
+#   scale_fill_gradientn("π1", colors = c("black", rev(brewer.pal(5, "YlOrRd")), "white")) + 
+#   scale_x_discrete(labels = rep("•", ncol(dat))) +
+#   scale_y_discrete(labels = rep("•", nrow(dat))) +
+#   sqtl_manuscript_theme() + 
+#   theme(axis.text.x = element_text(color = axis_colors, size = 15, vjust = 1), 
+#         axis.text.y = element_text(color = rev(axis_colors), size = 15), 
+#         plot.margin = unit(c(.75 ,.25, .25 ,.25), "cm"))
+
+# Try doing this the ggdendrogram way
+library(ggdendroplot)
+colclus <- hclust(dist(dat, method = "canberra"))
+rowclus <- colclus
+
+hm <- hmReady(dat, colclus = colclus, rowclus = rowclus)
+hmplot <- ggplot() + 
+  geom_tile(data = hm, aes(x = x, y = y, fill = value)) + 
+  scale_fill_gradientn(expression(π[1]), colors = c("black", rev(brewer.pal(5, "YlOrRd")), "white"))
+
+figS1G <- hmplot + 
+  geom_dendro(colclus, ylim=c(19,23)) + 
+  theme_hm() + 
+  # theme(axis.title = element_blank(), 
+  #       axis.text.y.left = element_blank()) + 
+
+  #scale_x_discrete(limits = rep("•", ncol(dat))) +
+  scale_y_continuous(breaks = 1:18, 
+                     labels = rep("︎●", 18), 
+                     expand = c(0,0)) + 
+  theme_hm() +
+  theme(axis.text.x = element_text(color = axis_colors, size = 9,
+                                   angle = 60, vjust = 1, hjust=1), 
+        axis.text.y = element_text(color = axis_colors, size = 11),
+        plot.margin = unit(c(.75 ,.25, .25 ,.25), "cm"),
+        legend.title = element_text(family = "times")) +
+  ylab("Test Tissue") + 
+  xlab("Replication Tissue")
+
+
+
+#### Plot the Plots! ####
 # Cowplot everything
 library(cowplot)
 f1_top <- plot_grid(NULL, fig1B, fig1C, rel_widths = c(1.5, 2, 1), nrow = 1, 
@@ -479,8 +524,12 @@ dev.off()
 S1_topR <- plot_grid(fig_S1B, fig_S1C, figS1D, figS1E, nrow = 2,
                      rel_widths = c(1, 1.7, 1, 1.7), labels = list("B", "C", "D", "E"))
 S1_top <- plot_grid(figS1A, S1_topR, rel_widths = c(1, 1.3))
-fig_S1 <- plot_grid(S1_top, figS1F, nrow = 2, rel_heights = c(1.2, 1), 
-                    labels = list("A", "F"))
+
+# S1_bottomL <- plot_grid(figS1G, NULL, nrow = 2, rel_heights = c(1.5, 1))
+S1_bottom <- plot_grid(figS1G, figS1F, rel_widths = c(1, 2.5), 
+                       labels = list("F", "G"))
+fig_S1 <- plot_grid(S1_top, S1_bottom, nrow = 2, rel_heights = c(1, 1), 
+                    labels = list("A", "F"), align = "hv")
 
 save_plot("figS1_sQTL_supplements.svg", width = 12, height = 9)
 fig_S1
