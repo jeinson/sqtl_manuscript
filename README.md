@@ -10,7 +10,7 @@ Other directories included are for:
   GTEx tissues, then merge these QTLs by top effect size. 
 - `coloc_scripts`: Scripts used to perform colocalization analysis of sQTLs
   against GWAS summary statistics from [Barbeira et
-  al.](https://www.nature.com/articles/s41467-018-03621-1)
+  al.](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02252-4)
 - `susie_scripts`: Scripts used to run fine mapping on sQTLs with SuSiE.
 - `data`: Small data snippets and final output files used to make the plots in
   the root directory. For larger files, refer to the Zenodo repo. 
